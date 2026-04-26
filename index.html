@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AP Fuel Availability Dashboard</title>
+    <!-- Leaflet CSS for Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-light: #6366f1;
+            --success: #10b981;
+            --success-bg: #d1fae5;
+            --success-text: #065f46;
+            --warning: #f59e0b;
+            --warning-bg: #fef3c7;
+            --warning-text: #92400e;
+            --danger: #ef4444;
+            --danger-bg: #fee2e2;
+            --danger-text: #991b1b;
+            --dark: #0f172a;
+            --light: #f8fafc;
+            --surface: #ffffff;
+            --border: #e2e8f0;
+            --text-muted: #64748b;
+            --chip-bg: #f1f5f9;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: #f0fdfa;
+            background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
+            background-size: 20px 20px;
+            color: var(--dark);
+            line-height: 1.4;
+            height: 100vh;
+            overflow: hidden; 
+            display: flex;
+            flex-direction: column;
+        }
+
+        .bg-watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40vw;
+            height: 40vw;
+            opacity: 0.03;
+            z-index: 0;
+            pointer-events: none;
+            user-select: none;
+            color: var(--primary);
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--primary), #3b82f6);
+            color: white;
+            padding: 0.75rem 2%;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            position: relative;
+            z-index: 10;
+        }
+
+        header h1 {
+            font-size: 1.3rem;
+            font-weight: 800;
+            margin-bottom: 0.1rem;
+        }
+
+        header p {
+            font-size: 0.85rem;
+            opacity: 0.9;
+        }
+
+        .community-notice {
+            background-color: #fffbeb;
+            color: #92400e;
+            border-bottom: 1px solid #fcd34d;
+            padding: 0.5rem;
+            text-align: center;
+            font-size: 0.85rem;
+            font-weight: 500;
+            z-index: 9;
+        }
+
+        .community-notice strong {
+            font-weight: 700;
+            color: #b45309;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0.75rem;
+            display: grid;
+            gap: 1rem;
+            grid-template-columns: 1fr;
+            flex-grow: 1;
+            overflow-y: auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        @media (min-width: 900px) {
+            .container {
+                grid-template-columns: 380px 1fr;
+                overflow: hidden; 
+            }
+            .sidebar {
+                overflow-y: auto;
+                padding-right: 0.5rem;
+                height: 100%;
+            }
+            .main-content {
+                display: flex;
+                flex-direction: column;
+                height: 100%;
+                overflow: hidden;
+            }
+            .station-grid {
+                overflow-y: auto;
+                align-content: start;
+                padding-bottom: 1rem;
+                padding-right: 0.5rem;
+            }
+        }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* Analytics Dashboard */
+        .analytics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .stat-card {
+            background: var(--surface);
+            padding: 0.75rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px -1px rgba(0,0,0,0.05);
+            text-align: center;
+            border: 1px solid var(--border);
+        }
+
+        .stat-card h3 {
+            font-size: 1.5rem;
+            font-weight: 800;
+            margin-bottom: 0.1rem;
+        }
+
+        .stat-card p {
+            color: var(--text-muted);
+            font-weight: 700;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+        }
+
+        /* Form Section */
+        .report-section {
+            background: var(--surface);
+            padding: 1.25rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+            border: 1px solid var(--border);
+            margin-bottom: 1rem;
+        }
+
+        .report-section h2 {
+            margin-bottom: 0.75rem;
+            font-size: 1.1rem;
+            color: var(--dark);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 0.75rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+            font-size: 0.85rem;
+            color: var(--dark);
+        }
+
+        .form-group input {
+            padding: 0.6rem 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.95rem;
+            background: var(--light);
+            transition: all 0.2s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+            background: white;
+        }
+
+        /* Selectable Chip Groups */
+        .chip-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+            margin-top: 0.1rem;
+        }
+
+        .chip-radio {
+            display: none;
+        }
+
+        .chip-label {
+            padding: 0.4rem 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 9999px;
+            background-color: white;
+            color: var(--dark);
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            user-select: none;
+        }
+
+        .chip-label:hover {
+            background-color: var(--light);
+        }
+
+        .chip-radio:checked + .chip-label {
+            background-color: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+            transform: scale(1.02);
+        }
+
+        input[name="availability"][value="5"]:checked + .chip-label { background: var(--success); border-color: var(--success); }
+        input[name="availability"][value="4"]:checked + .chip-label { background: #15803d; border-color: #15803d; }
+        input[name="availability"][value="3"]:checked + .chip-label { background: var(--warning); border-color: var(--warning); }
+        input[name="availability"][value="2"]:checked + .chip-label { background: #ea580c; border-color: #ea580c; }
+        input[name="availability"][value="1"]:checked + .chip-label { background: var(--danger); border-color: var(--danger); }
+        input[name="availability"][value="0"]:checked + .chip-label { background: #475569; border-color: #475569; }
+        
+        input[name="rushLevel"][value="No Rush"]:checked + .chip-label { background: var(--success); border-color: var(--success); }
+        input[name="rushLevel"][value="Light Rush"]:checked + .chip-label { background: var(--warning); border-color: var(--warning); }
+        input[name="rushLevel"][value="Heavy Rush"]:checked + .chip-label { background: #ea580c; border-color: #ea580c; }
+        input[name="rushLevel"][value="Extreme Gridlock"]:checked + .chip-label { background: var(--danger); border-color: var(--danger); }
+        input[name="rushLevel"][value="Closed / N/A"]:checked + .chip-label { background: #475569; border-color: #475569; }
+
+        button {
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            color: white;
+            border: none;
+            padding: 0.75rem 1rem;
+            font-size: 0.95rem;
+            font-weight: 700;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 0.75rem;
+            width: 100%;
+            transition: transform 0.1s, box-shadow 0.2s;
+            box-shadow: 0 4px 6px rgba(79, 70, 229, 0.25);
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 12px rgba(79, 70, 229, 0.3);
+        }
+
+        button:disabled {
+            background: #94a3b8;
+            box-shadow: none;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .location-btn {
+            background: var(--light);
+            color: var(--dark);
+            border: 1px dashed var(--primary);
+            box-shadow: none;
+            margin-top: 0;
+            font-size: 0.85rem;
+        }
+        
+        .location-btn:hover {
+            background: #e0e7ff;
+            transform: none;
+        }
+        
+        .location-btn.success {
+            background: var(--success);
+            color: white;
+            border-style: solid;
+            border-color: var(--success);
+        }
+
+        /* Map Modal */
+        .map-modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+
+        .map-modal-content {
+            background-color: #fff;
+            padding: 1.25rem;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 500px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        #pickerMap {
+            height: 300px;
+            border-radius: 8px;
+            z-index: 1; /* Keep leaflet under modal controls */
+            border: 1px solid var(--border);
+        }
+
+        /* Live Feed Section */
+        .feed-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            flex-shrink: 0;
+        }
+        
+        .feed-controls h2 {
+            font-size: 1.2rem;
+            color: var(--dark);
+        }
+
+        .feed-controls input {
+            padding: 0.5rem 0.75rem;
+            font-size: 0.85rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            font-weight: 600;
+        }
+
+        .filter-chips {
+            display: flex;
+            gap: 0.25rem;
+        }
+
+        .station-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1rem;
+        }
+
+        .station-card {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 1.25rem;
+            box-shadow: 0 2px 4px -1px rgba(0,0,0,0.05);
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            transition: box-shadow 0.2s;
+        }
+
+        .station-card:hover {
+            box-shadow: 0 8px 12px -3px rgba(0,0,0,0.1);
+        }
+
+        .card-header-compact {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+
+        .station-name {
+            font-weight: 800;
+            font-size: 1.1rem;
+            color: var(--dark);
+            line-height: 1.2;
+        }
+
+        .station-address {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            margin-top: 0.2rem;
+        }
+
+        .badge {
+            padding: 0.25rem 0.6rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 800;
+            color: white;
+            background: var(--warning);
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+        .badge.rank-1, .badge.rank-2 { background: var(--danger); }
+        .badge.rank-0 { background: #475569; }
+        .badge.rank-5 { background: var(--success); }
+
+        .chip-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+        }
+
+        .info-chip {
+            padding: 0.2rem 0.6rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            white-space: nowrap;
+        }
+
+        .chip-location { background: #e0e7ff; color: #3730a3; }
+        .chip-rush { background: var(--chip-bg); color: var(--text-muted); border: 1px solid var(--border); }
+        .chip-wait { background: var(--chip-bg); color: var(--text-muted); border: 1px solid var(--border); }
+
+        .chip-rank-5 { background: var(--success-bg); color: var(--success-text); }
+        .chip-rank-4 { background: #dcfce7; color: #166534; }
+        .chip-rank-3 { background: var(--warning-bg); color: var(--warning-text); }
+        .chip-rank-2 { background: #ffedd5; color: #c2410c; }
+        .chip-rank-1 { background: var(--danger-bg); color: var(--danger-text); }
+        .chip-rank-0 { background: #e2e8f0; color: #334155; }
+
+        .card-footer-compact {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: auto;
+            padding-top: 0.75rem;
+            border-top: 1px dashed var(--border);
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .directions-link {
+            color: var(--primary);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            padding: 0.3rem 0.6rem;
+            border-radius: 6px;
+            background: #eff6ff;
+            transition: background 0.2s;
+        }
+
+        .directions-link:hover { background: #dbeafe; }
+
+        .warning-banner {
+            background: var(--danger-bg);
+            color: var(--danger-text);
+            padding: 0.4rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            margin-bottom: 0.25rem;
+        }
+
+        /* Toast Notification */
+        #toast {
+            visibility: hidden;
+            min-width: 250px;
+            margin-left: -125px;
+            background-color: var(--success);
+            color: #fff;
+            text-align: center;
+            border-radius: 8px;
+            padding: 14px;
+            position: fixed;
+            z-index: 1000;
+            left: 50%;
+            bottom: 30px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        #toast.show {
+            visibility: visible;
+            animation: fadein 0.3s, fadeout 0.3s 2.7s;
+        }
+
+        #toast.error { background-color: var(--danger); }
+
+        @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
+        @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+
+        .auth-loader {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 0.5rem;
+            background: var(--surface);
+            border-top: 1px solid var(--border);
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-top: auto;
+        }
+
+        @media (max-width: 600px) {
+            .container { height: auto; overflow: visible; }
+            body { overflow: auto; }
+            .analytics-grid { grid-template-columns: 1fr 1fr; }
+            .bg-watermark { width: 85vw; height: 85vw; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Background Fuel Watermark -->
+    <svg class="bg-watermark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="22" x2="21" y2="22"></line>
+        <line x1="4" y1="9" x2="20" y2="9"></line>
+        <path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"></path>
+        <path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2h0a2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 5"></path>
+    </svg>
+
+    <header>
+        <h1 style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="3" y1="22" x2="21" y2="22"></line>
+                <line x1="4" y1="9" x2="20" y2="9"></line>
+                <path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"></path>
+                <path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2h0a2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 5"></path>
+            </svg>
+            AP Fuel Dashboard
+        </h1>
+        <p>Real-time community updates to find fuel and beat the rush.</p>
+    </header>
+
+    <div class="community-notice">
+        <strong>⚠️ గమనిక (Notice):</strong> ఇక్కడి సమాచారం మనలాంటి ప్రజలు ఇస్తున్నదే. సరైన సమాచారం ఇచ్చి అందరికీ సహాయపడండి! <br>
+        <span style="font-size: 0.75rem; opacity: 0.9;">Let's Join forces to tackle this issue</span>
+        <span style="font-size: 0.75rem; opacity: 0.9;">(This data is updated by the public. Please share true updates to help others!)</span>
+    </div>
+
+    <div class="container">
+        
+        <!-- SIDEBAR: Analytics & Form -->
+        <div class="sidebar">
+            <div class="analytics-grid" id="analytics">
+                <div class="stat-card">
+                    <h3 id="stat-total" style="color: var(--primary);">0</h3>
+                    <p>Stations</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="stat-stocked" style="color: var(--success);">0</h3>
+                    <p>Have Stock</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="stat-empty" style="color: var(--danger);">0</h3>
+                    <p>Empty</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="stat-wait" style="color: var(--warning);">--</h3>
+                    <p>Avg Wait</p>
+                </div>
+            </div>
+
+            <div class="report-section">
+                <h2>Submit Local Update</h2>
+                <form id="reportForm">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="stationName">Station Name</label>
+                            <input type="text" id="stationName" placeholder="e.g., HP Bunk" list="stationSuggestions" required autocomplete="off">
+                            <datalist id="stationSuggestions"></datalist>
+                        </div>
+                        <div class="form-group">
+                            <label for="district">Town / Area</label>
+                            <input type="text" id="district" placeholder="e.g., Allagadda" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Availability (0-5)</label>
+                            <div class="chip-group">
+                                <input type="radio" id="avail5" name="availability" value="5" class="chip-radio" required>
+                                <label for="avail5" class="chip-label">🟢 Fully Stocked</label>
+                                
+                                <input type="radio" id="avail4" name="availability" value="4" class="chip-radio">
+                                <label for="avail4" class="chip-label">🟢 Good</label>
+                                
+                                <input type="radio" id="avail3" name="availability" value="3" class="chip-radio">
+                                <label for="avail3" class="chip-label">🟡 Moderate</label>
+                                
+                                <input type="radio" id="avail2" name="availability" value="2" class="chip-radio">
+                                <label for="avail2" class="chip-label">🟠 Low</label>
+                                
+                                <input type="radio" id="avail1" name="availability" value="1" class="chip-radio">
+                                <label for="avail1" class="chip-label">🔴 Empty</label>
+                                
+                                <input type="radio" id="avail0" name="availability" value="0" class="chip-radio">
+                                <label for="avail0" class="chip-label">⚫ Closed / No Fuel</label>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Current Rush</label>
+                            <div class="chip-group">
+                                <input type="radio" id="rushNo" name="rushLevel" value="No Rush" class="chip-radio" required>
+                                <label for="rushNo" class="chip-label">🟢 None</label>
+                                
+                                <input type="radio" id="rushLight" name="rushLevel" value="Light Rush" class="chip-radio">
+                                <label for="rushLight" class="chip-label">🟡 Light</label>
+                                
+                                <input type="radio" id="rushHeavy" name="rushLevel" value="Heavy Rush" class="chip-radio">
+                                <label for="rushHeavy" class="chip-label">🟠 Heavy</label>
+                                
+                                <input type="radio" id="rushExtreme" name="rushLevel" value="Extreme Gridlock" class="chip-radio">
+                                <label for="rushExtreme" class="chip-label">🔴 Gridlock</label>
+
+                                <input type="radio" id="rushClosed" name="rushLevel" value="Closed / N/A" class="chip-radio">
+                                <label for="rushClosed" class="chip-label">⚫ Closed</label>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Est. Wait Time</label>
+                            <div class="chip-group">
+                                <input type="radio" id="wait0" name="waitTime" value="0" class="chip-radio" required>
+                                <label for="wait0" class="chip-label">0m</label>
+                                
+                                <input type="radio" id="wait15" name="waitTime" value="15" class="chip-radio">
+                                <label for="wait15" class="chip-label">< 15m</label>
+                                
+                                <input type="radio" id="wait30" name="waitTime" value="30" class="chip-radio">
+                                <label for="wait30" class="chip-label">30m</label>
+                                
+                                <input type="radio" id="wait60" name="waitTime" value="60" class="chip-radio">
+                                <label for="wait60" class="chip-label">1h</label>
+                                
+                                <input type="radio" id="wait120" name="waitTime" value="120" class="chip-radio">
+                                <label for="wait120" class="chip-label">1-2h</label>
+                                
+                                <input type="radio" id="wait121" name="waitTime" value="121" class="chip-radio">
+                                <label for="wait121" class="chip-label">2h+</label>
+                            </div>
+                        </div>
+                        <div class="form-group" style="display: flex; gap: 0.5rem; margin-top: 0.25rem;">
+                            <button type="button" id="getLocationBtn" class="location-btn" style="flex: 1;">📍 My GPS Location</button>
+                            <button type="button" id="openMapBtn" class="location-btn" style="flex: 1;">🗺️ Pick on Map</button>
+                        </div>
+                        <div id="locationStatus" style="display: none; text-align: center; color: var(--success); font-weight: 700; font-size: 0.85rem; margin-top: 0.25rem;">
+                            ✅ Location Saved
+                        </div>
+                    </div>
+                    <button type="submit" id="submitBtn" disabled>Connecting...</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- MAIN CONTENT: Live Feed -->
+        <div class="main-content">
+            <div class="feed-controls">
+                <h2>Live Feed</h2>
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; flex-grow: 1; justify-content: flex-end; align-items: center;">
+                    <input type="text" id="searchFeed" placeholder="Search name or area..." autocomplete="off">
+                    <div class="filter-chips">
+                        <input type="radio" id="filterAll" name="feedFilter" value="all" class="chip-radio" checked>
+                        <label for="filterAll" class="chip-label" style="padding: 0.4rem 0.75rem; font-size: 0.8rem;">🌍 All</label>
+                        
+                        <input type="radio" id="filterStocked" name="feedFilter" value="stocked" class="chip-radio">
+                        <label for="filterStocked" class="chip-label" style="padding: 0.4rem 0.75rem; font-size: 0.8rem;">⛽ Stocked (3+)</label>
+                    </div>
+                </div>
+            </div>
+
+            <div id="loadingFeed" class="auth-loader">Connecting to live data...</div>
+            <div class="station-grid" id="stationGrid"></div>
+        </div>
+
+    </div>
+
+    <footer>
+        👁️ Total Community Visitors: <span id="visitorCount" style="color: var(--primary);">...</span>
+    </footer>
+
+    <div id="toast">Message</div>
+
+    <!-- Map Picker Modal -->
+    <div id="mapModal" class="map-modal">
+        <div class="map-modal-content">
+            <h3 style="color: var(--dark);">Tap map to pin the station</h3>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">Move around and tap exactly where the station is located.</p>
+            <div id="pickerMap"></div>
+            <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                <button type="button" id="confirmMapBtn" style="flex: 1; margin: 0;">Confirm Pin</button>
+                <button type="button" id="cancelMapBtn" style="background: var(--danger); flex: 1; margin: 0; box-shadow: none;">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <!-- Firebase SDK Setup -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, doc, setDoc, increment } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBXECIZa45dq-o8Ka4G9Y1N7nll7cyli2U",
+  authDomain: "stuattnd.firebaseapp.com",
+  projectId: "stuattnd",
+  storageBucket: "stuattnd.firebasestorage.app",
+  messagingSenderId: "511533506488",
+  appId: "1:511533506488:web:aca4de3d513915d012f94d",
+  measurementId: "G-9PZZM5LFKX"
+        };
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'fuel-app-id';
+        
+        if (!firebaseConfig) showToast("Database configuration missing in this environment.", true);
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let stations = [];
+        let isAuthReady = false;
+
+        const stationGrid = document.getElementById('stationGrid');
+        const reportForm = document.getElementById('reportForm');
+        const searchFeed = document.getElementById('searchFeed');
+        const submitBtn = document.getElementById('submitBtn');
+        const loadingFeed = document.getElementById('loadingFeed');
+        
+        // Location Elements
+        const getLocationBtn = document.getElementById('getLocationBtn');
+        const openMapBtn = document.getElementById('openMapBtn');
+        const locationStatus = document.getElementById('locationStatus');
+        const mapModal = document.getElementById('mapModal');
+        const confirmMapBtn = document.getElementById('confirmMapBtn');
+        const cancelMapBtn = document.getElementById('cancelMapBtn');
+        
+        let currentCoords = null;
+        let pickerMap = null;
+        let pickerMarker = null;
+
+        function showToast(message, isError = false) {
+            const toast = document.getElementById("toast");
+            toast.innerText = message;
+            toast.className = isError ? "show error" : "show";
+            setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 3000);
+        }
+
+        // --- MAP PICKER LOGIC ---
+        openMapBtn.addEventListener('click', () => {
+            mapModal.style.display = 'flex';
+            if (!pickerMap) {
+                // Initialize map centered roughly on Allagadda, AP
+                pickerMap = L.map('pickerMap').setView([15.1328, 78.5833], 12);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '© OpenStreetMap'
+                }).addTo(pickerMap);
+
+                pickerMap.on('click', function(e) {
+                    if (pickerMarker) pickerMap.removeLayer(pickerMarker);
+                    pickerMarker = L.marker(e.latlng).addTo(pickerMap);
+                    currentCoords = { lat: e.latlng.lat, lng: e.latlng.lng };
+                });
+            }
+            // Fix map rendering issue when unhidden
+            setTimeout(() => pickerMap.invalidateSize(), 150);
+        });
+
+        cancelMapBtn.addEventListener('click', () => {
+            mapModal.style.display = 'none';
+        });
+
+        confirmMapBtn.addEventListener('click', () => {
+            if (currentCoords) {
+                mapModal.style.display = 'none';
+                locationStatus.style.display = 'block';
+                openMapBtn.classList.add('success');
+                getLocationBtn.classList.remove('success');
+            } else {
+                showToast("Please tap on the map to pin a location first.", true);
+            }
+        });
+
+        // --- GPS LOGIC ---
+        getLocationBtn.addEventListener('click', () => {
+            if (!navigator.geolocation) {
+                showToast("Geolocation is not supported by your browser", true);
+                return;
+            }
+            getLocationBtn.innerText = "📍 Getting...";
+            getLocationBtn.disabled = true;
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    currentCoords = { lat: position.coords.latitude, lng: position.coords.longitude };
+                    getLocationBtn.innerText = "📍 My GPS Location";
+                    getLocationBtn.classList.add('success');
+                    openMapBtn.classList.remove('success');
+                    locationStatus.style.display = 'block';
+                    getLocationBtn.disabled = false;
+                },
+                (error) => {
+                    showToast("Could not get location. Ensure permissions are enabled.", true);
+                    getLocationBtn.innerText = "📍 My GPS Location";
+                    getLocationBtn.disabled = false;
+                },
+                { enableHighAccuracy: true, timeout: 10000 }
+            );
+        });
+
+        function formatWaitTime(minutes) {
+            if (minutes == 0) return "No Wait";
+            if (minutes == 15) return "< 15 Mins";
+            if (minutes == 120) return "1 - 2 Hrs";
+            if (minutes > 120) return "2+ Hrs";
+            if (minutes == 60) return "1 Hr";
+            return `${minutes} Mins`;
+        }
+
+        function timeSince(date) {
+            if (!date) return "Just now"; 
+            
+            // Format exact time in Indian Standard Time (IST)
+            const istTime = date.toLocaleTimeString('en-IN', { 
+                timeZone: 'Asia/Kolkata', 
+                hour: 'numeric', 
+                minute: '2-digit', 
+                hour12: true 
+            });
+
+            const seconds = Math.floor((new Date() - date) / 1000);
+            let interval = seconds / 3600;
+            if (interval >= 1) return `${Math.floor(interval)} hr ago (${istTime})`;
+            interval = seconds / 60;
+            if (interval >= 1) return `${Math.floor(interval)} min ago (${istTime})`;
+            return `Just now (${istTime})`;
+        }
+
+        function updateAnalytics() {
+            const total = stations.length;
+            const stocked = stations.filter(s => s.rank >= 3).length;
+            const empty = stations.filter(s => s.rank <= 2).length;
+            
+            const waitTimes = stations.filter(s => s.rank >= 3 && s.wait > 0).map(s => parseInt(s.wait));
+            let avgWait = "--";
+            if (waitTimes.length > 0) {
+                const sum = waitTimes.reduce((a, b) => a + b, 0);
+                avgWait = formatWaitTime(Math.round(sum / waitTimes.length));
+            }
+
+            document.getElementById('stat-total').innerText = total;
+            document.getElementById('stat-stocked').innerText = stocked;
+            document.getElementById('stat-empty').innerText = empty;
+            document.getElementById('stat-wait').innerText = avgWait;
+        }
+
+        function renderStations() {
+            const filter = document.querySelector('input[name="feedFilter"]:checked').value;
+            const searchTerm = searchFeed.value.toLowerCase().trim();
+            stationGrid.innerHTML = "";
+            
+            let filteredStations = stations.filter(s => {
+                const nameMatch = s.name && s.name.toLowerCase().includes(searchTerm);
+                const locMatch = s.location && s.location.toLowerCase().includes(searchTerm);
+                const distMatch = s.district && s.district.toLowerCase().includes(searchTerm);
+                
+                const matchesSearch = nameMatch || locMatch || distMatch;
+                const matchesFilter = filter === "stocked" ? s.rank >= 3 : true;
+                
+                return matchesSearch && matchesFilter;
+            });
+
+            if(filteredStations.length === 0) {
+                stationGrid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: #64748b; padding: 3rem; background: var(--surface); border-radius: 12px; border: 1px dashed var(--border);">No station data found. Be the first local hero to report!</div>`;
+            }
+
+            filteredStations.forEach(station => {
+                const card = document.createElement('div');
+                card.className = 'station-card';
+
+                let warningBanner = '';
+                if (station.rank >= 4 && station.rush.includes("Heavy")) {
+                    warningBanner = `<div class="warning-banner"><span>⚠️</span> Heavy queues despite good stock</div>`;
+                }
+
+                let mapLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(station.name + ' ' + (station.district || station.location))}`;
+                if (station.lat && station.lng) {
+                    mapLink = `https://www.google.com/maps/dir/?api=1&destination=${station.lat},${station.lng}`;
+                }
+
+                const rankLabels = {5: 'Fully Stocked', 4: 'Good Stock', 3: 'Moderate', 2: 'Running Out', 1: 'Empty', 0: 'Closed / No Fuel'};
+
+                card.innerHTML = `
+                    ${warningBanner}
+                    <div class="card-header-compact" style="align-items: center;">
+                        <div class="station-name">${station.name}</div>
+                        <span class="badge rank-${station.rank}">RANK ${station.rank}/5</span>
+                    </div>
+                    <div class="station-address" style="margin-top: -0.5rem; margin-bottom: 0.5rem; color: var(--text-muted);">📍 ${station.district || station.location}</div>
+                    
+                    <div style="border-top: 1px solid var(--border); padding-top: 0.75rem; display: flex; flex-direction: column; gap: 0.4rem;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-muted); font-weight: 600; font-size: 0.9rem;">Rush Level:</span>
+                            <span style="font-weight: 500; font-size: 0.9rem;">${station.rush.replace('Extreme ', '')}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-muted); font-weight: 600; font-size: 0.9rem;">Est. Wait:</span>
+                            <span style="font-weight: 500; font-size: 0.9rem;">${formatWaitTime(station.wait)}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="card-footer-compact" style="border-top: none; padding-top: 0;">
+                        <span class="time-updated" style="font-size: 0.8rem;">Updated: ${timeSince(station.timestamp)}</span>
+                        <a href="${mapLink}" target="_blank" rel="noopener noreferrer" class="directions-link" style="background: transparent; padding: 0; font-size: 0.85rem;">Get Directions ↗</a>
+                    </div>
+                `;
+                stationGrid.appendChild(card);
+            });
+
+            updateAnalytics();
+        }
+
+        async function trackVisitor() {
+            if (!isAuthReady) return;
+            try {
+                const statsRef = doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'global');
+                // Increment visitor count by 1 on load
+                await setDoc(statsRef, { visitors: increment(1) }, { merge: true });
+                
+                // Listen to visitor updates
+                onSnapshot(statsRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        document.getElementById('visitorCount').innerText = docSnap.data().visitors.toLocaleString();
+                    }
+                });
+            } catch(error) {
+                console.error("Stats tracking error:", error);
+            }
+        }
+
+        function setupRealtimeListener() {
+            loadingFeed.style.display = 'none';
+            submitBtn.disabled = false;
+            submitBtn.innerText = "Submit Live Update";
+
+            const collectionPath = collection(db, 'artifacts', appId, 'public', 'data', 'fuel_reports');
+            
+            onSnapshot(collectionPath, (snapshot) => {
+                stations = [];
+                snapshot.forEach((doc) => {
+                    const data = doc.data();
+                    stations.push({
+                        id: doc.id,
+                        name: data.name,
+                        location: data.location || "",
+                        district: data.district || data.location || "",
+                        rank: data.rank,
+                        rush: data.rush,
+                        wait: data.wait,
+                        lat: data.lat || null,
+                        lng: data.lng || null,
+                        timestamp: data.timestamp ? data.timestamp.toDate() : new Date() 
+                    });
+                });
+                
+                stations.sort((a, b) => b.timestamp - a.timestamp);
+                
+                const defaultBrands = [
+                    "HP Petrol Bunk", 
+                    "Indian Oil", 
+                    "Bharat Petroleum", 
+                    "Nayara (Essar)", 
+                    "Reliance Jio-bp", 
+                    "Shell"
+                ];
+                const communityNames = stations.map(s => s.name);
+                const uniqueNames = [...new Set([...defaultBrands, ...communityNames])];
+                
+                const dataList = document.getElementById('stationSuggestions');
+                dataList.innerHTML = uniqueNames.map(name => `<option value="${name}">`).join('');
+
+                renderStations();
+            }, (error) => {
+                showToast("Lost connection to live updates.", true);
+            });
+        }
+
+        async function initAuth() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                showToast("Failed to connect to database.", true);
+            }
+        }
+
+        onAuthStateChanged(auth, (user) => {
+            if (user && !isAuthReady) {
+                isAuthReady = true;
+                setupRealtimeListener();
+                trackVisitor();
+            }
+        });
+
+        initAuth();
+
+        reportForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            if(!isAuthReady) return;
+
+            submitBtn.disabled = true;
+            submitBtn.innerText = "Submitting...";
+            
+            const sName = document.getElementById('stationName').value.trim();
+            const sDistrict = document.getElementById('district').value.trim();
+            const sLoc = sDistrict; 
+
+            const fiveMinsAgo = new Date(Date.now() - 5 * 60000);
+            const isDuplicate = stations.some(s => 
+                s.name.toLowerCase() === sName.toLowerCase() && 
+                (s.district || s.location).toLowerCase() === sDistrict.toLowerCase() && 
+                s.timestamp > fiveMinsAgo
+            );
+
+            if (isDuplicate) {
+                showToast("This exact station was updated in the last 5 minutes.", true);
+                submitBtn.disabled = false;
+                submitBtn.innerText = "Submit Live Update";
+                return;
+            }
+
+            try {
+                const collectionPath = collection(db, 'artifacts', appId, 'public', 'data', 'fuel_reports');
+                await addDoc(collectionPath, {
+                    name: sName,
+                    location: sLoc,
+                    district: sDistrict,
+                    rank: parseInt(document.querySelector('input[name="availability"]:checked').value),
+                    rush: document.querySelector('input[name="rushLevel"]:checked').value,
+                    wait: document.querySelector('input[name="waitTime"]:checked').value,
+                    lat: currentCoords ? currentCoords.lat : null,
+                    lng: currentCoords ? currentCoords.lng : null,
+                    timestamp: serverTimestamp()
+                });
+                
+                reportForm.reset();
+                currentCoords = null;
+                if(pickerMarker) { pickerMap.removeLayer(pickerMarker); pickerMarker = null; }
+                getLocationBtn.classList.remove('success');
+                openMapBtn.classList.remove('success');
+                locationStatus.style.display = 'none';
+                showToast("🎉 Report submitted! The community thanks you.");
+            } catch (error) {
+                showToast("Error submitting report. Please try again.", true);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerText = "Submit Live Update";
+            }
+        });
+
+        document.querySelectorAll('input[name="feedFilter"]').forEach(radio => {
+            radio.addEventListener('change', renderStations);
+        });
+        searchFeed.addEventListener('input', renderStations);
+
+        document.querySelectorAll('input[name="availability"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                if (e.target.value === "0") {
+                    document.getElementById('rushClosed').checked = true;
+                    document.getElementById('wait0').checked = true;
+                }
+            });
+        });
+
+        setInterval(() => {
+            document.querySelectorAll('.time-updated').forEach((el, index) => {
+                const searchTerm = searchFeed.value.toLowerCase().trim();
+                const filter = document.querySelector('input[name="feedFilter"]:checked').value;
+                
+                let filteredStations = stations.filter(s => {
+                    const nameMatch = s.name && s.name.toLowerCase().includes(searchTerm);
+                    const locMatch = s.location && s.location.toLowerCase().includes(searchTerm);
+                    const distMatch = s.district && s.district.toLowerCase().includes(searchTerm);
+                    const matchesSearch = nameMatch || locMatch || distMatch;
+                    const matchesFilter = filter === "stocked" ? s.rank >= 3 : true;
+                    return matchesSearch && matchesFilter;
+                });
+                
+                if(filteredStations[index]) {
+                    el.innerText = `Updated: ${timeSince(filteredStations[index].timestamp)}`;
+                }
+            });
+        }, 60000);
+
+    </script>
+</body>
+</html>
